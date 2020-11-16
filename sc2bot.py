@@ -9,7 +9,27 @@ class SC2Bot(sc2.BotAI):
 
     async def on_step(self, iteration):
         self.iteration = iteration
+        await self.queen()
+        await self.baneling()
+        await self.larvae()
+        await self.roach()
+        await self.drone()
+    
+    async def queen(self):
+        pass
 
+    async def baneling(self):
+        pass
+
+    async def larvae(self):
+        pass
+
+    async def roach(self):
+        pass
+
+    async def drone(self):
+        pass
+            
 run_game(
     maps.get("AcropolisLE"),
     [Bot(Race.Zerg, SC2Bot()), Computer(Race.Terran, Difficulty.Hard)],
