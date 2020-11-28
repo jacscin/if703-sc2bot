@@ -4,88 +4,80 @@ from sc2.player import Bot, Computer
 from sc2.constants import *
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from sc2.data import ActionResult, Attribute, Race
+import random
+from contextlib import suppress
 
 class SC2Bot(sc2.BotAI):
     def __init__(self):
         self.iterbymin = 168
+        self.reservedWorkers = []
+
+    def select_target(self) -> Point2:
+        if self.enemy_structures:
+            return random.choice(self.enemy_structures).position
+        return self.enemy_start_locations[0]
 
     async def on_step(self, iteration):
-        if not self.townhalls:
-            all_attack_units: Units = self.units.of_type(
-                {UnitTypeId.DRONE, UnitTypeId.QUEEN, UnitTypeId.ZERGLING, UnitTypeId.CORRUPTOR, UnitTypeId.BROODLORD}
-            )
-            for unit in all_attack_units:
-                unit.attack(self.enemy_start_locations[0])
-            return
-        else:
-            hq: Unit = self.townhalls.first
+        await self.worker_manager()
+        await self.production_manager()
 
-        if self.can_afford(UnitTypeId.SPAWNINGPOOL) and self.already_pending(UnitTypeId.SPAWNINGPOOL) + self.structures.filter(lambda structure: structure.type_id == UnitTypeId.SPAWNINGPOOL and structure.is_ready).amount == 0:
-            worker_candidates = self.workers.filter(lambda worker: (worker.is_collecting or worker.is_idle) and worker.tag not in self.unit_tags_received_action)
-            # Worker_candidates can be empty
-            if worker_candidates:
-                map_center = self.game_info.map_center
-                position_towards_map_center = self.start_location.towards(map_center, distance=5)
-                placement_position = await self.find_placement(UnitTypeId.SPAWNINGPOOL, near=position_towards_map_center, placement_step=1)
-                # Placement_position can be None
-                if placement_position:
-                    build_worker = worker_candidates.closest_to(placement_position)
-                    build_worker.build(UnitTypeId.SPAWNINGPOOL, placement_position)
+    async def worker_manager(self):
+        await self.distribute_workers()
+        if (
+            len(self.units(UnitTypeId.DRONE)) > 13
+            and self.supply_left < 2
+            and self.already_pending(UnitTypeId.OVERLORD) < 2
+            and self.can_afford(UnitTypeId.OVERLORD)
+        ):
+            self.train(UnitTypeId.OVERLORD)
+        if self.can_afford(UnitTypeId.DRONE) and self.supply_workers < 20:
+            self.train(UnitTypeId.DRONE)
 
-        # Build Extractor
-        if self.gas_buildings.amount + self.already_pending(UnitTypeId.EXTRACTOR) < 2:
-            if self.can_afford(UnitTypeId.EXTRACTOR):
-                drone: Unit = self.workers.random
-                target: Unit = self.vespene_geyser.closest_to(drone.position)
-                drone.build_gas(target)
-        #Create Lair
-        if self.structures(UnitTypeId.SPAWNINGPOOL).ready:
-            if not self.townhalls(UnitTypeId.LAIR) and not self.townhalls(UnitTypeId.HIVE) and hq.is_idle:
-                if self.can_afford(UnitTypeId.LAIR):
-                    hq.build(UnitTypeId.LAIR)
+    async def information_manager(self):
+        pass
 
-        await self.queen(hq)
-        await self.baneling()
-        await self.larvae()
-        await self.roach()
-        await self.drone()
+    async def production_manager(self):
+        await self.building_manager()
+
+    async def strategy_manager(self):
+        pass
     
-    async def queen(self, hq):
-        if self.structures(UnitTypeId.SPAWNINGPOOL).ready:
-            if not self.units(UnitTypeId.QUEEN) and hq.is_idle:
-                if self.can_afford(UnitTypeId.QUEEN):
-                    hq.train(UnitTypeId.QUEEN)
-        
-        for queen in self.units(UnitTypeId.QUEEN).idle:
-            if queen.energy >= 25:
-                queen(AbilityId.EFFECT_INJECTLARVA, hq)
-
-    async def baneling(self):
+    async def map_grid(self):
         pass
 
-    async def larvae(self):
-        larvae: Units = self.larva
-        for loop_larva in larvae:
-            if loop_larva.tag in self.unit_tags_received_action:
-                continue
-            if self.can_afford(UnitTypeId.DRONE):
-                loop_larva.train(UnitTypeId.DRONE)
-                break
-            else:
-                break
-
-        if self.supply_left < 2:
-            if larvae and self.can_afford(UnitTypeId.OVERLORD):
-                larvae.random.train(UnitTypeId.OVERLORD)
-                return
-
-    async def roach(self):
+    async def combat_manager(self):
         pass
 
-    async def drone(self):
-        pass
+    async def building_manager(self):
+        if (
+            self.gas_buildings.amount + self.already_pending(UnitTypeId.EXTRACTOR) == 0
+            and self.can_afford(UnitTypeId.EXTRACTOR)
+            and self.workers
+        ):
+            drone: Unit = self.workers.random
+            target: Unit = self.vespene_geyser.closest_to(drone)
+            drone.build_gas(target)
+
+        with suppress(AssertionError):
+            if self.townhalls.amount < 2 and (self.can_afford(UnitTypeId.HATCHERY) and self.units(UnitTypeId.DRONE).amount > 5) and self.already_pending(UnitTypeId.HATCHERY) < 1:
+                    planned_hatch_locations: Set[Point2] = {placeholder.position for placeholder in self.placeholders}
+                    my_structure_locations: Set[Point2] = {structure.position for structure in self.structures}
+                    enemy_structure_locations: Set[Point2] = {structure.position for structure in self.enemy_structures}
+                    blocked_locations: Set[
+                        Point2
+                    ] = my_structure_locations | planned_hatch_locations | enemy_structure_locations
+                    expansions = self.expansion_locations_list
+                    for exp_pos in expansions:
+                        if exp_pos in blocked_locations:
+                            continue
+                        for drone in self.workers.collecting:
+                            drone: Unit
+                            drone.build(UnitTypeId.HATCHERY, exp_pos)
+                            break
             
 run_game(
     maps.get("AcropolisLE"),
