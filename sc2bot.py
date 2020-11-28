@@ -14,7 +14,7 @@ from contextlib import suppress
 class SC2Bot(sc2.BotAI):
     def __init__(self):
         self.iterbymin = 168
-        self.reservedWorkers = []
+        self.assigned_queens = {}
 
     def select_target(self) -> Point2:
         if self.enemy_structures:
@@ -36,6 +36,28 @@ class SC2Bot(sc2.BotAI):
             self.train(UnitTypeId.OVERLORD)
         if self.can_afford(UnitTypeId.DRONE) and self.supply_workers < 20:
             self.train(UnitTypeId.DRONE)
+        
+        if (
+            self.can_afford(UnitTypeId.ZERGLING)
+            and self.larva
+            and self.supply_army + self.supply_workers > 20
+            and self.units(UnitTypeId.ZERGLING).amount < 6):
+                self.larva.random.train(UnitTypeId.ZERGLING)
+        
+        await self.queen_manager()
+
+    async def queen_manager(self):
+        if (
+            self.can_afford(UnitTypeId.QUEEN) 
+            and self.supply_army + self.supply_workers > 17
+            and len(self.units(UnitTypeId.QUEEN).idle) < 6
+            and self.townhalls.first.is_idle
+        ):
+            self.townhalls.first.train(UnitTypeId.QUEEN)
+        for queen in self.units(UnitTypeId.QUEEN).idle:
+            if queen.energy >= 25:
+                queen(AbilityId.EFFECT_INJECTLARVA, self.townhalls.first)
+
 
     async def information_manager(self):
         pass
@@ -63,7 +85,11 @@ class SC2Bot(sc2.BotAI):
             drone.build_gas(target)
 
         with suppress(AssertionError):
-            if self.townhalls.amount < 2 and (self.can_afford(UnitTypeId.HATCHERY) and self.units(UnitTypeId.DRONE).amount > 5) and self.already_pending(UnitTypeId.HATCHERY) < 1:
+            if (
+                self.townhalls.amount < 2 
+                and (self.can_afford(UnitTypeId.HATCHERY) 
+                and self.units(UnitTypeId.DRONE).amount > 5) 
+                and self.already_pending(UnitTypeId.HATCHERY) < 1):
                     planned_hatch_locations: Set[Point2] = {placeholder.position for placeholder in self.placeholders}
                     my_structure_locations: Set[Point2] = {structure.position for structure in self.structures}
                     enemy_structure_locations: Set[Point2] = {structure.position for structure in self.enemy_structures}
@@ -78,6 +104,18 @@ class SC2Bot(sc2.BotAI):
                             drone: Unit
                             drone.build(UnitTypeId.HATCHERY, exp_pos)
                             break
+        
+        if (
+            self.can_afford(UnitTypeId.SPAWNINGPOOL)
+            and self.structures(UnitTypeId.SPAWNINGPOOL).amount + self.already_pending(UnitTypeId.SPAWNINGPOOL) == 0
+            and self.townhalls.amount >= 2
+            ):
+                print("Building Spawning Pool")
+                await self.build (
+                    UnitTypeId.SPAWNINGPOOL,
+                    near=self.townhalls.first.position.towards(self.game_info.map_center, 5)
+                    )
+
             
 run_game(
     maps.get("AcropolisLE"),
