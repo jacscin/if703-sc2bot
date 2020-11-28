@@ -67,6 +67,8 @@ class SC2Bot(sc2.BotAI):
         await self.building_manager()
 
     async def combat_manager(self):
+        await self.strategy_manager()
+
         # Attack
         if(self.army_command == 1):
             pass
@@ -90,7 +92,7 @@ class SC2Bot(sc2.BotAI):
                 for scout in self.units(UnitTypeId.OVERLORD).idle[:3]:
                     if location not in self.scouts.values():
                         if scout.tag not in self.scouts:
-                            await self.do(scout.move(location))
+                            self.do(scout.move(location))
                             self.scouts[scout.tag] = location
         self.army_command = 0
 
@@ -121,7 +123,7 @@ class SC2Bot(sc2.BotAI):
             and self.townhalls.amount < self.iteration / self.iterbymin
             and not self.already_pending(UnitTypeId.HATCHERY)
         ):
-            self.expand_now()
+            await self.expand_now()
         
         if (
             self.can_afford(UnitTypeId.SPAWNINGPOOL)
