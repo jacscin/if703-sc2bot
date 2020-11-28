@@ -2,8 +2,6 @@ import sc2, math
 from sc2 import run_game, maps, Race, Difficulty
 from sc2.player import Bot, Computer
 from sc2.constants import *
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
@@ -68,6 +66,7 @@ class SC2Bot(sc2.BotAI):
 
     async def combat_manager(self):
         await self.strategy_manager()
+        await self.upgrade_manager()
 
         # Attack
         if(self.army_command == 1):
@@ -104,8 +103,18 @@ class SC2Bot(sc2.BotAI):
         if(False):
             self.army_command = 2
     
-    async def map_grid(self):
-        pass
+    async def upgrade_manager(self):
+        if self.structures(UnitTypeId.HATCHERY).ready:
+            if self.can_afford(AbilityId.RESEARCH_PNEUMATIZEDCARAPACE):
+                if self.already_pending_upgrade(UpgradeId.OVERLORDSPEED) == 0:
+                    cc = self.structures(UnitTypeId.HATCHERY).ready.first
+                    cc.research(UpgradeId.OVERLORDSPEED)
+
+        if self.structures(UnitTypeId.HATCHERY).ready:
+            if self.can_afford(AbilityId.RESEARCH_BURROW):
+                if self.already_pending_upgrade(UpgradeId.BURROW) == 0:
+                    cc = self.structures(UnitTypeId.HATCHERY).ready.first
+                    cc.research(UpgradeId.BURROW)
 
     async def building_manager(self):
         if (
