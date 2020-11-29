@@ -31,29 +31,12 @@ class SC2Bot(sc2.BotAI):
 
     async def worker_manager(self):
         await self.distribute_workers()
-<<<<<<< Updated upstream
-        if (
-            len(self.units(UnitTypeId.DRONE)) > 13
-            and self.supply_left < 2
-            and self.already_pending(UnitTypeId.OVERLORD) < 2
-            and self.can_afford(UnitTypeId.OVERLORD)
-        ):
-            self.train(UnitTypeId.OVERLORD)
-
-        if self.can_afford(UnitTypeId.DRONE) and self.supply_workers < 15 * self.townhalls.amount:
-            self.train(UnitTypeId.DRONE)
-=======
->>>>>>> Stashed changes
         
         if (
             self.can_afford(UnitTypeId.ZERGLING)
             and self.larva
             and self.supply_army + self.supply_workers > 20
-<<<<<<< Updated upstream
-            and self.units(UnitTypeId.ZERGLING).amount < (8 * self.townhalls.amount)):
-=======
             and self.units(UnitTypeId.ZERGLING).amount < (12 * self.townhalls.amount)):
->>>>>>> Stashed changes
                 self.larva.random.train(UnitTypeId.ZERGLING)
 
         if (
