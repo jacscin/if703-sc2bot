@@ -257,6 +257,6 @@ class SC2Bot(sc2.BotAI):
 
 run_game(
     maps.get("AcropolisLE"),
-    [Bot(Race.Zerg, SC2Bot()), Computer(Race.Protoss, Difficulty.Hard)],
+    [Bot(Race.Zerg, SC2Bot()), Computer(Race.Terran, Difficulty.Hard)],
     realtime=False,
 )
