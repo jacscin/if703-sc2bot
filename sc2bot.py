@@ -15,7 +15,7 @@ class SC2Bot(sc2.BotAI):
         self.assigned_queens = {}
         self.scouts = {}
         self.last_scout = 0
-        self.enemy_count = 0
+        self.enemy_count = [0 for _ in range(100)]
         self.army_command = 0 #0: idle, 1: attack, 2: defend
 
     def select_target(self) -> Point2:
@@ -32,34 +32,37 @@ class SC2Bot(sc2.BotAI):
     async def worker_manager(self):
         await self.distribute_workers()
         
-        if (
-            self.can_afford(UnitTypeId.ZERGLING)
-            and self.larva
-            and self.supply_army + self.supply_workers > 20
-            and self.units(UnitTypeId.ZERGLING).amount < (12 * self.townhalls.amount)):
-                self.larva.random.train(UnitTypeId.ZERGLING)
+        if (self.larva
+            and self.can_afford(UnitTypeId.HYDRALISK)
+            and self.structures(UnitTypeId.HYDRALISKDEN).ready
+        ):
+            self.larva.random.train(UnitTypeId.HYDRALISK)
 
         if (
             self.can_afford(UnitTypeId.ROACH)
             and self.larva
             and self.supply_army + self.supply_workers > 27
-            and self.units(UnitTypeId.ROACH).amount < (6 * self.townhalls.amount)):
-                self.larva.random.train(UnitTypeId.ROACH)
-        
-        if self.larva and self.can_afford(UnitTypeId.HYDRALISK) and self.structures(UnitTypeId.HYDRALISKDEN).ready:
-            self.larva.random.train(UnitTypeId.HYDRALISK)
+            and self.units(UnitTypeId.ROACH).amount < (6 * self.townhalls.amount)
+        ):
+            self.larva.random.train(UnitTypeId.ROACH)
 
         await self.queen_manager()
         
         if (
-            self.supply_left < 2
-            and not self.already_pending(UnitTypeId.OVERLORD)
+            self.supply_left < 4
             and self.can_afford(UnitTypeId.OVERLORD)
         ):
             self.train(UnitTypeId.OVERLORD)
 
         if self.can_afford(UnitTypeId.DRONE) and self.supply_workers < min(80, (16 * self.townhalls.amount) + 3):
             self.train(UnitTypeId.DRONE)
+        
+        if (
+            self.can_afford(UnitTypeId.ZERGLING)
+            and self.larva
+            and self.supply_army + self.supply_workers > 20
+            and self.units(UnitTypeId.ZERGLING).amount < min(12 * self.townhalls.amount, 30)):
+                self.larva.random.train(UnitTypeId.ZERGLING)
 
     async def queen_manager(self):
         if (
@@ -79,41 +82,39 @@ class SC2Bot(sc2.BotAI):
         await self.strategy_manager()
         await self.upgrade_manager()
 
-        # Attack
-        if(self.army_command == 1):
+        # Idle
+        if(self.army_command == 0):
             for unit in self.units:
                 if ((unit.type_id != UnitTypeId.OVERLORD)
                     and (unit.type_id != UnitTypeId.DRONE)
+                    and (unit.type_id != UnitTypeId.QUEEN)
                 ):
-                    if self.enemy_units.amount > 0:
-                        unit.attack(self.enemy_units.closest_to(unit))
-                    elif self.enemy_structures.amount > 0:
-                        unit.attack(self.enemy_structures.closest_to(unit))
-                    else:
-                        unit.attack(self.enemy_start_locations[0])
+                    self.do(unit.move(self.townhalls[0]))
+
+        # Attack
+        if(self.army_command == 1):
+            for unit in self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.HYDRALISK}):
+                if self.enemy_units.amount > 0:
+                    unit.attack(self.enemy_units.closest_to(unit))
+                elif self.enemy_structures.amount > 0:
+                    unit.attack(self.enemy_structures.closest_to(unit))
+                else:
+                    unit.attack(random.choice(self.expansion_locations_list))
 
         # Defend
         if(self.army_command == 2):
-            for unit in self.units:
-                if ((unit.type_id != UnitTypeId.OVERLORD)
-                    and (unit.type_id != UnitTypeId.DRONE)
-                ):
-                    closest_enemies = self.enemy_units.closer_than(5, unit)
-                    if len(closest_enemies) > 0:
-                        target = random.choice(closest_enemies)
-                        closest_units = self.units(UnitTypeId.ZERGLING).n_closest_to_distance(target.position, 5,
-                                                                                        round(len(closest_enemies) * 1.25))
-                        for backup_unit in closest_units:
-                            backup_unit.attack(target)
-
-            for idle_unit in self.units(UnitTypeId.ZERGLING).idle:
-                idle_unit.move(self.townhalls[0].position)
+            for unit in self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN}):
+                if unit.distance_to(self.enemy_structures.closest_to(self.game_info.map_center)) > unit.distance_to(self.structures.closest_to(unit.position)):
+                    if self.enemy_units.amount > 0:
+                        unit.attack(self.enemy_units.closest_to(unit))
+                else:
+                    self.do(unit.move(self.structures.closest_to(unit.position)))
 
     async def strategy_manager(self):
         # Scouting
-        if (self.iteration / self.iterbymin) > self.last_scout:
+        self.enemy_count = [self.enemy_units.amount] + self.enemy_count[:99]
+        if (self.iteration / (2*self.iterbymin)) > self.last_scout:
             self.last_scout += 1
-            self.enemy_count = self.enemy_count * 0.9
             to_be_removed = []
             for scout in self.scouts:
                 if scout not in [unit.tag for unit in self.units]:
@@ -134,22 +135,35 @@ class SC2Bot(sc2.BotAI):
                         if scout.tag not in self.scouts:
                             self.do(scout.move(location))
                             self.scouts[scout.tag] = location
-        self.army_command = 0
+            for scout in self.units.tags_in(self.scouts.keys()):
+                if self.enemy_units.closer_than(11, scout).amount > 0:
+                    self.do(scout.move(self.townhalls[0]))
+                else:
+                    self.do(scout.move(self.scouts[scout.tag]))
+
+        # Idle
+        if self.army_command == 0:
+            pass
+        elif (self.army_command == 1
+            and (self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.HYDRALISK}).amount
+            < (max(max(self.enemy_count), self.enemy_units.amount) - 10))
+        ):
+            self.army_command = 0
 
         # Attacking
-        self.enemy_count = max(self.enemy_count, self.enemy_units.amount)
-        print(self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.QUEEN}).amount, self.enemy_count)
-        if(self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.QUEEN}).amount
-            > (self.enemy_count + 10)
+        print(self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.HYDRALISK}).amount, (max(max(self.enemy_count), self.enemy_units.amount)))
+        if(self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.HYDRALISK}).amount
+            > (max(max(self.enemy_count), self.enemy_units.amount) + 20)
         ):
             self.army_command = 1
 
         # Defending
-        for building in self.structures():
-            if (self.enemy_units.closer_than(30, building).amount > 0
-                and (self.units.amount - self.units({UnitTypeId.OVERLORD, UnitTypeId.DRONE}).amount) > 10
-            ):
-                self.army_command = 2
+        if self.army_command != 1:
+            for building in self.structures():
+                if (self.enemy_units.closer_than(10, building).amount > 0
+                    and (self.units({UnitTypeId.ZERGLING, UnitTypeId.ROACH, UnitTypeId.HYDRALISK}).amount > 10)
+                ):
+                    self.army_command = 2
 
         print(self.army_command)
 
@@ -199,7 +213,8 @@ class SC2Bot(sc2.BotAI):
 
     async def building_manager(self):
         if (
-            self.gas_buildings.amount + self.already_pending(UnitTypeId.EXTRACTOR) == 0
+            not self.already_pending(UnitTypeId.EXTRACTOR)
+            and self.structures(UnitTypeId.EXTRACTOR).amount < self.townhalls.amount
             and self.can_afford(UnitTypeId.EXTRACTOR)
             and self.workers
         ):
@@ -242,6 +257,6 @@ class SC2Bot(sc2.BotAI):
 
 run_game(
     maps.get("AcropolisLE"),
-    [Bot(Race.Zerg, SC2Bot()), Computer(Race.Terran, Difficulty.Hard)],
+    [Bot(Race.Zerg, SC2Bot()), Computer(Race.Protoss, Difficulty.Hard)],
     realtime=False,
 )
