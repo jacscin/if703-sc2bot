@@ -145,10 +145,10 @@ class SC2Bot(sc2.BotAI):
             target: Unit = self.vespene_geyser.closest_to(drone)
             drone.build_gas(target)
 
+        th = {UnitTypeId.NEXUS, UnitTypeId.HATCHERY, UnitTypeId.LAIR, UnitTypeId.HIVE, UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}
         if (
-            self.townhalls.amount < 2
+            self.townhalls.amount <= self.enemy_structures(th).amount
             and self.can_afford(UnitTypeId.HATCHERY)
-            and self.townhalls.amount < self.iteration / self.iterbymin
             and not self.already_pending(UnitTypeId.HATCHERY)
         ):
             await self.expand_now()
