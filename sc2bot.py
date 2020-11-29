@@ -27,7 +27,7 @@ class SC2Bot(sc2.BotAI):
         self.iteration = iteration
         await self.worker_manager()
         await self.production_manager()
-        await self.combat_manager(iteration)
+        await self.combat_manager()
 
     async def worker_manager(self):
         await self.distribute_workers()
@@ -45,9 +45,6 @@ class SC2Bot(sc2.BotAI):
             and self.supply_army + self.supply_workers > 27
             and self.units(UnitTypeId.ROACH).amount < (6 * self.townhalls.amount)):
                 self.larva.random.train(UnitTypeId.ROACH)
-
-        if self.larva and self.can_afford(UnitTypeId.HYDRALISK) and self.structures(UnitTypeId.HYDRALISKDEN).ready:
-            self.larva.random.train(UnitTypeId.HYDRALISK)
         
         if self.larva and self.can_afford(UnitTypeId.HYDRALISK) and self.structures(UnitTypeId.HYDRALISKDEN).ready:
             self.larva.random.train(UnitTypeId.HYDRALISK)
@@ -78,25 +75,9 @@ class SC2Bot(sc2.BotAI):
     async def production_manager(self):
         await self.building_manager()
 
-    async def combat_manager(self, iteration):
+    async def combat_manager(self):
         await self.strategy_manager()
         await self.upgrade_manager()
-
-        if self.units(UnitTypeId.HYDRALISK).amount >= 10 and iteration % 50 == 0:
-            for unit in self.units.of_type({UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK}).idle:
-                unit.attack(self.select_target())
-
-        for unit in self.units:
-            if unit.type_id != UnitTypeId.OVERLORD:
-                closest_enemies = self.enemy_units.closer_than(5, unit)
-                if len(closest_enemies) > 0:
-                    target = random.choice(closest_enemies)
-                    attack_units : Units = self.units.of_type(
-                    {UnitTypeId.QUEEN, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK}
-                    ).prefer_idle
-                    closest_units = attack_units.n_closest_to_distance(target.position, 3, round(len(closest_enemies) * 1.25))
-                    for backup_unit in closest_units:
-                        backup_unit.attack(target)
 
         # Attack
         if(self.army_command == 1):
@@ -259,13 +240,8 @@ class SC2Bot(sc2.BotAI):
                 if self.can_afford(UnitTypeId.HYDRALISKDEN):
                     await self.build(UnitTypeId.HYDRALISKDEN,  near=self.townhalls.first.position.towards(self.game_info.map_center, 5))
 
-        if self.townhalls(UnitTypeId.LAIR).ready:
-            if self.structures(UnitTypeId.HYDRALISKDEN).amount + self.already_pending(UnitTypeId.HYDRALISKDEN) == 0:
-                if self.can_afford(UnitTypeId.HYDRALISKDEN):
-                    await self.build(UnitTypeId.HYDRALISKDEN,  near=self.townhalls.first.position.towards(self.game_info.map_center, 5))
-
 run_game(
     maps.get("AcropolisLE"),
-    [Bot(Race.Zerg, SC2Bot()), Computer(Race.Terran, Difficulty.Easy)],
+    [Bot(Race.Zerg, SC2Bot()), Computer(Race.Terran, Difficulty.Hard)],
     realtime=False,
 )
