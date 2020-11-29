@@ -44,8 +44,15 @@ class SC2Bot(sc2.BotAI):
             self.can_afford(UnitTypeId.ZERGLING)
             and self.larva
             and self.supply_army + self.supply_workers > 20
-            and self.units(UnitTypeId.ZERGLING).amount < 6):
+            and self.units(UnitTypeId.ZERGLING).amount < (6 * self.townhalls.amount)):
                 self.larva.random.train(UnitTypeId.ZERGLING)
+
+        if (
+            self.can_afford(UnitTypeId.ROACH)
+            and self.larva
+            and self.supply_army + self.supply_workers > 27
+            and self.units(UnitTypeId.ROACH).amount < (5 * self.townhalls.amount)):
+                self.larva.random.train(UnitTypeId.ROACH)
         
         await self.queen_manager()
 
