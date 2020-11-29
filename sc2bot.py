@@ -37,7 +37,7 @@ class SC2Bot(sc2.BotAI):
         ):
             self.train(UnitTypeId.OVERLORD)
 
-        if self.can_afford(UnitTypeId.DRONE) and self.supply_workers < 20:
+        if self.can_afford(UnitTypeId.DRONE) and self.supply_workers < 80:
             self.train(UnitTypeId.DRONE)
         
         if (
@@ -128,12 +128,26 @@ class SC2Bot(sc2.BotAI):
                     hatchery = self.structures(UnitTypeId.HATCHERY).ready.first
                     hatchery.research(UpgradeId.BURROW)
 
-        if self.structures(UnitTypeId.HATCHERY).ready:
-            if self.structures(UnitTypeId.SPAWNINGPOOL).ready:
-                if not self.townhalls(UnitTypeId.LAIR):
-                    if self.can_afford(UnitTypeId.LAIR):
-                        hatchery = self.structures(UnitTypeId.HATCHERY).ready.first
-                        hatchery.build(UnitTypeId.LAIR)
+        if (self.structures(UnitTypeId.HATCHERY).ready
+            and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+            and self.structures(UnitTypeId.LAIR).amount + self.structures(UnitTypeId.HIVE).amount + self.already_pending(UnitTypeId.LAIR) == 0
+            and self.can_afford(UnitTypeId.LAIR)
+        ):
+            print("Build Lair")
+            hatchery = self.structures(UnitTypeId.HATCHERY).ready.first
+            hatchery.build(UnitTypeId.LAIR)
+
+        if (self.structures(UnitTypeId.LAIR).ready
+            and self.supply_used > 130
+            and self.units(UnitTypeId.INFESTATIONPIT).amount + self.already_pending(UnitTypeId.INFESTATIONPIT) == 0
+            and self.can_afford(UnitTypeId.INFESTATIONPIT)
+            and self.townhalls.amount >= 2
+        ):
+            print("Build Infestation Build")
+            await self.build (
+                    UnitTypeId.INFESTATIONPIT,
+                    near=self.townhalls.first.position.towards(self.game_info.map_center, 7)
+                    )
 
     async def building_manager(self):
         if (
@@ -146,8 +160,7 @@ class SC2Bot(sc2.BotAI):
             drone.build_gas(target)
 
         if (
-            self.townhalls.amount < 2
-            and self.can_afford(UnitTypeId.HATCHERY)
+            self.can_afford(UnitTypeId.HATCHERY)
             and self.townhalls.amount < self.iteration / self.iterbymin
             and not self.already_pending(UnitTypeId.HATCHERY)
         ):
