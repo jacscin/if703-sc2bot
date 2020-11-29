@@ -92,10 +92,15 @@ class SC2Bot(sc2.BotAI):
 
         for scout in to_be_removed:
             del self.scouts[scout]
+
+        if self.townhalls(UnitTypeId.LAIR).exists:
+            for scout in self.units.tags_in(self.scouts.keys()).idle:
+                scout(AbilityId.BEHAVIOR_GENERATECREEPON)
             
         if self.units(UnitTypeId.OVERLORD).idle.amount > 0:
-            for location in self.enemy_start_locations[:3]:
-                for scout in self.units(UnitTypeId.OVERLORD).idle[:3]:
+            enemy_locations = sorted(self.expansion_locations_list, key=lambda el: el.distance_to(self.enemy_start_locations[0]))
+            for location in enemy_locations[:5]:
+                for scout in self.units(UnitTypeId.OVERLORD).idle:
                     if location not in self.scouts.values():
                         if scout.tag not in self.scouts:
                             self.do(scout.move(location))
@@ -113,15 +118,22 @@ class SC2Bot(sc2.BotAI):
     async def upgrade_manager(self):
         if self.structures(UnitTypeId.HATCHERY).ready:
             if self.can_afford(AbilityId.RESEARCH_PNEUMATIZEDCARAPACE):
-                if self.already_pending_upgrade(UpgradeId.OVERLORDSPEED) == 0:
-                    cc = self.structures(UnitTypeId.HATCHERY).ready.first
-                    cc.research(UpgradeId.OVERLORDSPEED)
+                if not self.already_pending_upgrade(UpgradeId.OVERLORDSPEED):
+                    hatchery = self.structures(UnitTypeId.HATCHERY).ready.first
+                    hatchery.research(UpgradeId.OVERLORDSPEED)
 
         if self.structures(UnitTypeId.HATCHERY).ready:
             if self.can_afford(AbilityId.RESEARCH_BURROW):
-                if self.already_pending_upgrade(UpgradeId.BURROW) == 0:
-                    cc = self.structures(UnitTypeId.HATCHERY).ready.first
-                    cc.research(UpgradeId.BURROW)
+                if not self.already_pending_upgrade(UpgradeId.BURROW):
+                    hatchery = self.structures(UnitTypeId.HATCHERY).ready.first
+                    hatchery.research(UpgradeId.BURROW)
+
+        if self.structures(UnitTypeId.HATCHERY).ready:
+            if self.structures(UnitTypeId.SPAWNINGPOOL).ready:
+                if not self.townhalls(UnitTypeId.LAIR):
+                    if self.can_afford(UnitTypeId.LAIR):
+                        hatchery = self.structures(UnitTypeId.HATCHERY).ready.first
+                        hatchery.build(UnitTypeId.LAIR)
 
     async def building_manager(self):
         if (
@@ -134,7 +146,7 @@ class SC2Bot(sc2.BotAI):
             drone.build_gas(target)
 
         if (
-            self.townhalls.amount < 5
+            self.townhalls.amount < 2
             and self.can_afford(UnitTypeId.HATCHERY)
             and self.townhalls.amount < self.iteration / self.iterbymin
             and not self.already_pending(UnitTypeId.HATCHERY)
@@ -146,13 +158,11 @@ class SC2Bot(sc2.BotAI):
             and self.structures(UnitTypeId.SPAWNINGPOOL).amount + self.already_pending(UnitTypeId.SPAWNINGPOOL) == 0
             and self.townhalls.amount >= 2
             ):
-                print("Building Spawning Pool")
                 await self.build (
                     UnitTypeId.SPAWNINGPOOL,
                     near=self.townhalls.first.position.towards(self.game_info.map_center, 5)
                     )
 
-            
 run_game(
     maps.get("AcropolisLE"),
     [Bot(Race.Zerg, SC2Bot()), Computer(Race.Terran, Difficulty.Hard)],
